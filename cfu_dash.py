@@ -182,7 +182,13 @@ def main():
     findsg = findsg.dropna(subset=['lat', 'long'])
 
     groups = groups.dropna(subset=['from_date', 'to_date'])
-    groups.fillna('Unknown', inplace=True)
+    #groups.fillna('Unknown', inplace=True)
+    for col in groups:
+        dt = groups[col].dtype 
+        if (dt == int) or (dt == float):
+            groups[col].fillna(np.nan, inplace=True)
+        else:
+            groups[col].fillna("Unknown", inplace=True)
     groups = groups.replace({'count':{'?':0, 'Unknown':0}})
 
     dates = dates.dropna(subset=['from','to','fromDate','toDate'])

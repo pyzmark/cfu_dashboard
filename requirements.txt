@@ -1,0 +1,8 @@
+streamlit_folium
+streamlit_extras
+altair
+geojson
+pandas
+shapely
+openpyxl
+validators

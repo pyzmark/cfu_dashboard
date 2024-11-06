@@ -12,7 +12,7 @@ import ast
 import json
 
 app_title = 'Coin Finds of Ukraine'
-app_subtitle = 'Coin Finds of Ukraine (CFU) tracks archaic, classical, and hellenistic hoards and single-finds (600-1 BCE) on the territory of modern Ukraine'
+app_subtitle = 'Coin Finds of Ukraine (CFU) tracks archaic, classical, and hellenistic hoards and single-finds (600-1 BCE) on the territory of modern Ukraine. Send comments to Mark Pyzyk (mpyzyk@getty.edu)'
 
 # Map visualization
 def display_map(findsg, groups, denom, date_min, date_max, material, material_dict, mint, number_min, number_max):

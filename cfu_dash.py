@@ -286,7 +286,6 @@ def main():
     cfu_map, groups = display_map(findsg, groups, denom, date_min, date_max, material, material_dict, mint, number_min, number_max)
     folium.LayerControl().add_to(cfu_map)
     st.data = folium_static(cfu_map, width=None, height=600)
-    st.write(st.session_state)
     #c1, c2 = st.columns(2)
     #with c1:
     #    output = st_folium(cfu_map, width=None, height=600)

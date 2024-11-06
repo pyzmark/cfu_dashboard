@@ -1,16 +1,15 @@
 import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 from streamlit_extras.app_logo import add_logo
 import numpy as np
 import re
 import folium
 #from folium import plugins
 from folium.plugins import MarkerCluster
-import altair as alt
 import ast
 import json
-from geojson import Point, LineString, GeometryCollection, Feature, FeatureCollection
 
 app_title = 'Coin Finds of Ukraine'
 app_subtitle = 'Coin Finds of Ukraine (CFU) tracks archaic, classical, and hellenistic hoards and single-finds (600-1 BCE) on the territory of modern Ukraine'
@@ -24,126 +23,138 @@ def display_map(findsg, groups, denom, date_min, date_max, material, material_di
         denom_dedict = dedictionarize(denom_dict)
         denom_changed = [denom_dedict[x] for x in denom]
         groups = groups[groups['denom1'].isin(denom_changed)]
+        for i in st.session_state.keys():
+            del st.session_state[i]
 
     if material:
         material_dedict = dedictionarize(material_dict)
         material_changed = [material_dedict[x] for x in material]
         groups = groups[groups['Material 1 URI'].isin(material_changed)]
+        for i in st.session_state.keys():
+            del st.session_state[i]
 
     if mint:
         mint_dict = dictionarize(groups, 'Mint 1 URI')
         mint_dedict = dedictionarize(mint_dict)
         mint_changed = [mint_dedict[x] for x in mint]
         groups = groups[groups['Mint 1 URI'].isin(mint_changed)]
+        for i in st.session_state.keys():
+            del st.session_state[i]
 
     if date_min or date_max:
         groups = groups[groups['from_date'] > date_min]
         groups = groups[groups['to_date'] < date_max]
+        for i in st.session_state.keys():
+            del st.session_state[i]
 
     if number_min or number_max:
         groups = groups[groups['count'] > number_min]
         groups = groups[groups['count'] < number_max]
+        for i in st.session_state.keys():
+            del st.session_state[i]
 
     # Then filter finds according to the groups that are left after filtering groups
     findsg = findsg[findsg['id'].isin(list(groups['id']))]
+    if 'map' not in st.session_state or st.session_state.map is None:
+        # Construct map starting here
+        latitude = 50
+        longitude = 32
 
-    # Construct map starting here
-    latitude = 50
-    longitude = 32
+        cfu_map = folium.Map(
+            location=[latitude, longitude], 
+            zoom_start=5, 
+            tiles=None)
+        # Add several basemap layers onto the blank space prepared above
+        folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+                        name='Esri.WorldGrayCanvas',
+                        attr='Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ').add_to(cfu_map)
 
-    cfu_map = folium.Map(
-        location=[latitude, longitude], 
-        zoom_start=5, 
-        tiles=None)
-    # Add several basemap layers onto the blank space prepared above
-    folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-                     name='Esri.WorldGrayCanvas',
-                     attr='Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ').add_to(cfu_map)
+        ids = list(findsg['id'])
+        latitudes = list(findsg['lat'])
+        longitudes = list(findsg['long'])
+        places = list(findsg['place'])
 
-    ids = list(findsg['id'])
-    latitudes = list(findsg['lat'])
-    longitudes = list(findsg['long'])
-    places = list(findsg['place'])
+        style = lambda x: {
+            'color' : 'black',
+            'opacity' : '1',
+            'weight' : '0.3',
+            'radius' : '6',
+            'fill' : 'True',
+            'fillOpacity' : '0.6',
+            'fillColor' : 'white'
+                }
+        highlight = lambda x: {
+            'color' : 'white',
+            'opacity' : '0.80',
+            'weight' : '5',
+            'fill' : 'True',
+            'fillOpacity' : '0.3',
+            'fillColor' : 'white'
+                }
 
-    style = lambda x: {
-        'color' : 'black',
-        'opacity' : '1',
-        'weight' : '0.3',
-        'radius' : '6',
-        'fill' : 'True',
-        'fillOpacity' : '0.6',
-        'fillColor' : 'white'
-            }
-    highlight = lambda x: {
-        'color' : 'white',
-        'opacity' : '0.80',
-        'weight' : '5',
-        'fill' : 'True',
-        'fillOpacity' : '0.3',
-        'fillColor' : 'white'
-            }
-
-    # The spiderfy option is needed for 2-clusters, which do not separate enough to allow for a click from the user
-    marker_cluster = MarkerCluster(name='mc', options={'spiderfyDistanceMultiplier':3}).add_to(cfu_map)
-
-
-    for iden, latitude, longitude, place in zip(ids, latitudes, longitudes, places):
-
-        findgroups = groups[groups['id'] == iden]
-        denoms = list(findgroups['denom1'])
-        denom_dict = {'nan':'Unknown'}
-        mints = list(findgroups['Mint 1 URI'])
-        numbers = list(findgroups['count'])
-        mindates = list(findgroups['from_date'])
-        maxdates = list(findgroups['to_date'])
-        grouptext = ''
-        totalcount = 0
-
-        for (denom, mint, number, mindate, maxdate) in zip(denoms, mints, numbers, mindates, maxdates):
-            # Weed out the nans when converting to an actual name
-            try:
-                denom = denom_dict[denom]
-            except:
-                denom = denom
-            # The following just transform the formats on the sheet to something friendly for the popup
-            denom = re.sub('(https://nomisma.org/id/)(.*)', '<a href="\\1\\2">\\2</a>', denom)
-            mint = re.sub('(https://nomisma.org/id/)(.*)', '<a href="\\1\\2">\\2</a>', mint)
-            daterange = str(mindate).replace('-','') + '-' + str(maxdate).replace('-','')
-            gtemplate = f"""
-            {denom} ({mint}, {daterange} BCE): {number}<br>"""
-            grouptext = grouptext + gtemplate
-            try:
-                totalcount = totalcount + int(number)
-            except:
-                totalcount = totalcount
-        iden = iden.replace('cfu', '')
-
-        if totalcount == 1:
-            werewas = 'coin was'
-        else:
-            werewas = 'coins were'
-
-        label = f"""
-<h3> CFU Coin Find {iden}</h3><br>
-This coin find was found in {place}. In total, {totalcount} {werewas} found.
-  <p>
-{grouptext}
-  </p>
-        """
-        html = folium.Html(label, script=True)
-
-        folium.features.CircleMarker(
-        [latitude, longitude],
-        radius=6,
-        color='black',
-        fill='True',
-        fill_color='white',
-        fill_opacity=0.6,
-        weight=0.3,
-        popup=folium.Popup(html, parse_html=True, max_width=500)).add_to(marker_cluster)
+        # The spiderfy option is needed for 2-clusters, which do not separate enough to allow for a click from the user
+        marker_cluster = MarkerCluster(name='mc', options={'spiderfyDistanceMultiplier':3}).add_to(cfu_map)
 
 
-    return cfu_map, groups
+        for iden, latitude, longitude, place in zip(ids, latitudes, longitudes, places):
+
+            findgroups = groups[groups['id'] == iden]
+            denoms = list(findgroups['denom1'])
+            denom_dict = {'nan':'Unknown'}
+            mints = list(findgroups['Mint 1 URI'])
+            numbers = list(findgroups['count'])
+            mindates = list(findgroups['from_date'])
+            maxdates = list(findgroups['to_date'])
+            grouptext = ''
+            totalcount = 0
+
+            for (denom, mint, number, mindate, maxdate) in zip(denoms, mints, numbers, mindates, maxdates):
+                # Weed out the nans when converting to an actual name
+                try:
+                    denom = denom_dict[denom]
+                except:
+                    denom = denom
+                # The following just transform the formats on the sheet to something friendly for the popup
+                denom = re.sub('(https://nomisma.org/id/)(.*)', '<a href="\\1\\2">\\2</a>', denom)
+                mint = re.sub('(https://nomisma.org/id/)(.*)', '<a href="\\1\\2">\\2</a>', mint)
+                daterange = str(mindate).replace('-','') + '-' + str(maxdate).replace('-','')
+                gtemplate = f"""
+                {denom} ({mint}, {daterange} BCE): {number}<br>"""
+                grouptext = grouptext + gtemplate
+                try:
+                    totalcount = totalcount + int(number)
+                except:
+                    totalcount = totalcount
+            iden = iden.replace('cfu', '')
+
+            if totalcount == 1:
+                werewas = 'coin was'
+            else:
+                werewas = 'coins were'
+
+            label = f"""
+    <h3> CFU Coin Find {iden}</h3><br>
+    This coin find was found in {place}. In total, {totalcount} {werewas} found.
+    <p>
+    {grouptext}
+    </p>
+            """
+            html = folium.Html(label, script=True)
+
+            folium.features.CircleMarker(
+            [latitude, longitude],
+            radius=6,
+            color='black',
+            fill='True',
+            fill_color='white',
+            fill_opacity=0.6,
+            weight=0.3,
+            popup=folium.Popup(html, parse_html=True, max_width=500)).add_to(marker_cluster)
+
+        st.session_state.map = cfu_map
+
+
+    return st.session_state.map, groups
 
 
 # Main app
@@ -259,20 +270,23 @@ def main():
 
     slider_min = min(list(findsg['fromDate_left']))
     slider_max = max(list(findsg['toDate_left']))
-    date_slider = st.sidebar.slider('Date Range of Coins', slider_min, slider_max, (slider_min,slider_max))
+    # Inserting manual numbers here -- the max was not showing up
+    date_slider = st.sidebar.slider('Date Range of Coins', slider_min, 1.00, (slider_min,1.00))
     date_min = date_slider[0]
     date_max = date_slider[1]
 
 
     slider_min = min(list(groups['count']))
     slider_max = max(list(groups['count']))
-    number_slider = st.sidebar.slider('Number of Coins in Hoard', slider_min, slider_max, (slider_min,slider_max))
+    # Inserting manual numbers here -- the max was not showing up
+    number_slider = st.sidebar.slider('Number of Coins in Hoard', slider_min, 300.00, (slider_min,300.00))
     number_min = number_slider[0]
     number_max = number_slider[1]
 
     cfu_map, groups = display_map(findsg, groups, denom, date_min, date_max, material, material_dict, mint, number_min, number_max)
     folium.LayerControl().add_to(cfu_map)
-    st.data = st_folium(cfu_map, width=None, height=600)
+    st.data = folium_static(cfu_map, width=None, height=600)
+    st.write(st.session_state)
     #c1, c2 = st.columns(2)
     #with c1:
     #    output = st_folium(cfu_map, width=None, height=600)

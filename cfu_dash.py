@@ -6,7 +6,6 @@ from streamlit_extras.app_logo import add_logo
 import numpy as np
 import re
 import folium
-#from folium import plugins
 from folium.plugins import MarkerCluster
 import ast
 import json
@@ -23,38 +22,37 @@ def display_map(findsg, groups, denom, date_min, date_max, material, material_di
         denom_dedict = dedictionarize(denom_dict)
         denom_changed = [denom_dedict[x] for x in denom]
         groups = groups[groups['denom1'].isin(denom_changed)]
-        for i in st.session_state.keys():
-            del st.session_state[i]
 
     if material:
         material_dedict = dedictionarize(material_dict)
         material_changed = [material_dedict[x] for x in material]
         groups = groups[groups['Material 1 URI'].isin(material_changed)]
-        for i in st.session_state.keys():
-            del st.session_state[i]
 
     if mint:
         mint_dict = dictionarize(groups, 'Mint 1 URI')
         mint_dedict = dedictionarize(mint_dict)
         mint_changed = [mint_dedict[x] for x in mint]
         groups = groups[groups['Mint 1 URI'].isin(mint_changed)]
-        for i in st.session_state.keys():
-            del st.session_state[i]
 
     if date_min or date_max:
         groups = groups[groups['from_date'] > date_min]
         groups = groups[groups['to_date'] < date_max]
-        for i in st.session_state.keys():
-            del st.session_state[i]
 
     if number_min or number_max:
         groups = groups[groups['count'] > number_min]
         groups = groups[groups['count'] < number_max]
-        for i in st.session_state.keys():
-            del st.session_state[i]
+
+    # Below is needed for the map to update. All of the above are updated through
+    # the lists and when something is new, the map function runs again, but
+    # because the map session state exists it does not update. So erase the session
+    for i in st.session_state.keys():
+        del st.session_state[i]
 
     # Then filter finds according to the groups that are left after filtering groups
     findsg = findsg[findsg['id'].isin(list(groups['id']))]
+
+    # Apply a session_state condition here to prevent the map from being endlessly reloaded
+    # It's necessary for the spider graphing to work too
     if 'map' not in st.session_state or st.session_state.map is None:
         # Construct map starting here
         latitude = 50
@@ -65,7 +63,7 @@ def display_map(findsg, groups, denom, date_min, date_max, material, material_di
             zoom_start=5, 
             tiles=None)
         # Add several basemap layers onto the blank space prepared above
-        folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+        folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
                         name='Esri.WorldGrayCanvas',
                         attr='Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ').add_to(cfu_map)
 
@@ -152,7 +150,7 @@ def display_map(findsg, groups, denom, date_min, date_max, material, material_di
             popup=folium.Popup(html, parse_html=True, max_width=500)).add_to(marker_cluster)
 
         st.session_state.map = cfu_map
-
+        st.session_state.denom_state = denom
 
     return st.session_state.map, groups
 
@@ -298,6 +296,7 @@ def main():
     #st.write(groups)
     #st.write(findsg)
     #st.write(groups)
+    #st.write(st.session_state)
 
 if __name__ == '__main__':
     main()

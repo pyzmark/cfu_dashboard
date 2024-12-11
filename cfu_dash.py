@@ -64,8 +64,11 @@ def display_map(findsg, groups, denom, date_min, date_max, material, material_di
             tiles=None)
         # Add several basemap layers onto the blank space prepared above
         folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
-                        name='Esri.WorldGrayCanvas',
-                        attr='Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ').add_to(cfu_map)
+                        name='ESRI - World Shader Relief - Light',
+                        attr='Tiles &copy; Esri &mdash; Source: Esri').add_to(cfu_map)
+        folium.TileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+                        name='Carto DB - Dark',
+                        attr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>').add_to(cfu_map)
 
         ids = list(findsg['id'])
         latitudes = list(findsg['lat'])
